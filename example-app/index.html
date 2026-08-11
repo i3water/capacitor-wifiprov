@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#10283f" />
+    <title>ESP WiFiProv Demo</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">CAPACITOR × ESPRESSIF</p>
+          <h1>ESP WiFiProv</h1>
+          <p>BLE / SoftAP 安全配网最小演示</p>
+        </div>
+        <span id="status-pill" class="pill">未连接</span>
+      </header>
+
+      <section class="card">
+        <div class="card-title"><span>1</span><h2>平台与权限</h2></div>
+        <div class="actions">
+          <button id="capabilities">读取能力</button>
+          <button id="check-permissions" class="secondary">检查权限</button>
+          <button id="request-permissions" class="secondary">申请权限</button>
+        </div>
+        <pre id="environment" class="result compact">等待查询</pre>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><span>2</span><h2>发现或创建设备</h2></div>
+        <div class="grid three">
+          <label>BLE 名称前缀<input id="prefix" value="PROV_" /></label>
+          <label>安全版本
+            <select id="security">
+              <option value="2">Security 2</option>
+              <option value="1" selected>Security 1</option>
+              <option value="0">Security 0（仅调试）</option>
+            </select>
+          </label>
+          <label>用户名（Sec2）<input id="username" value="wifiprov" /></label>
+        </div>
+        <label>PoP / Security 2 密码<input id="pop" value="abcd1234" type="password" /></label>
+        <div class="actions">
+          <button id="scan-ble">扫描 BLE</button>
+          <button id="stop-scan" class="secondary">停止扫描</button>
+          <button id="scan-snapshot" class="ghost">读取扫描快照</button>
+        </div>
+        <div id="devices" class="device-list"><p class="muted">尚未发现设备</p></div>
+
+        <details>
+          <summary>按名称创建 / SoftAP</summary>
+          <div class="grid two nested">
+            <label>设备名<input id="device-name" value="PROV_123" /></label>
+            <label>传输方式
+              <select id="transport">
+                <option value="ble">BLE</option>
+                <option value="softap">SoftAP</option>
+              </select>
+            </label>
+          </div>
+          <label>SoftAP 密码<input id="softap-password" type="password" placeholder="开放热点可留空" /></label>
+          <button id="create-device">创建设备引用</button>
+        </details>
+
+        <details>
+          <summary>导入 Espressif 配网二维码内容</summary>
+          <textarea id="qr-payload" rows="4">{"ver":"v1","name":"PROV_123","pop":"abcd1234","transport":"ble","security":1}</textarea>
+          <button id="import-qr">导入 QR JSON</button>
+        </details>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><span>3</span><h2>连接与设备信息</h2></div>
+        <div class="actions">
+          <button id="connect">建立安全会话</button>
+          <button id="device-info" class="secondary">设备信息</button>
+          <button id="disconnect" class="danger">断开</button>
+          <button id="clear-state" class="ghost">清除插件状态</button>
+        </div>
+        <pre id="selected-device" class="result compact">尚未选择设备</pre>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><span>4</span><h2>扫描 Wi‑Fi 与配网</h2></div>
+        <button id="scan-wifi">让 ESP32 扫描 Wi‑Fi</button>
+        <div id="networks" class="network-list"><p class="muted">连接设备后扫描</p></div>
+        <div class="grid two">
+          <label>目标 SSID<input id="ssid" autocomplete="off" /></label>
+          <label>Wi‑Fi 密码<input id="wifi-password" type="password" autocomplete="new-password" /></label>
+        </div>
+        <button id="provision" class="success">开始配网</button>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><span>5</span><h2>自定义 Endpoint 与维护</h2></div>
+        <div class="grid two">
+          <label>Endpoint<input id="endpoint" value="custom-data" /></label>
+          <label>编码
+            <select id="encoding">
+              <option value="utf8">UTF‑8</option>
+              <option value="hex">HEX</option>
+              <option value="base64">Base64</option>
+            </select>
+          </label>
+        </div>
+        <textarea id="custom-data" rows="3">hello esp32</textarea>
+        <div class="actions">
+          <button id="send-custom">发送自定义数据</button>
+          <button id="reset-wifi" class="danger">重置设备 Wi‑Fi 状态</button>
+        </div>
+        <pre id="custom-result" class="result compact">等待发送</pre>
+      </section>
+
+      <section class="card log-card">
+        <div class="card-title"><span>6</span><h2>事件日志</h2></div>
+        <div class="actions"><button id="clear-log" class="ghost">清空日志</button></div>
+        <pre id="log" class="log"></pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

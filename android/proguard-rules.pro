@@ -1,0 +1,3 @@
+-keep class com.espressif.provisioning.** { *; }
+-keep class espressif.** { *; }
+-dontwarn com.google.protobuf.**

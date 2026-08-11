@@ -1,0 +1,33 @@
+# Dependencies and local tooling
+node_modules/
+.build/
+.idea/
+.vscode/
+*.log
+
+# Package archives
+*.tgz
+
+# Android generated/local files
+**/.gradle/
+**/build/
+**/local.properties
+**/*.apk
+**/*.aab
+example-app/android/capacitor-cordova-android-plugins/
+example-app/android/app/src/main/assets/public/
+example-app/android/app/src/main/assets/capacitor.config.json
+example-app/android/app/src/main/assets/capacitor.plugins.json
+
+# iOS generated/local files
+**/DerivedData/
+example-app/ios/App/Pods/
+example-app/ios/App/App/public/
+example-app/ios/App/App/capacitor.config.json
+
+# Example web build
+example-app/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
