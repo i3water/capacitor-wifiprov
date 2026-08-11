@@ -28,7 +28,7 @@ The JavaScript API is intentionally platform-neutral. Android uses `esp-idf-prov
 ## Install
 
 ```bash
-npm install github:coloz/capacitor-wifiprov
+npm install capacitor-wifiprov
 npx cap sync
 ```
 
