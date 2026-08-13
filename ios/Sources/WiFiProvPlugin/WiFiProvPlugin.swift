@@ -65,11 +65,11 @@ public class WiFiProvPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
     }
 
-    @objc func checkPermissions(_ call: CAPPluginCall) {
+    @objc public override func checkPermissions(_ call: CAPPluginCall) {
         call.resolve(permissionStatus())
     }
 
-    @objc func requestPermissions(_ call: CAPPluginCall) {
+    @objc public override func requestPermissions(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.permissionBluetoothManager = CBCentralManager(delegate: nil, queue: .main)
             self.permissionLocationManager = CLLocationManager()

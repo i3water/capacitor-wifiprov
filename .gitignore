@@ -4,7 +4,6 @@ node_modules/
 .idea/
 .vscode/
 *.log
-
 # Package archives
 *.tgz
 
@@ -31,3 +30,5 @@ example-app/dist/
 # OS files
 .DS_Store
 Thumbs.db
+
+dist/
