@@ -44,6 +44,7 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -68,7 +69,14 @@ public class WiFiProvPlugin extends Plugin {
     private static final String DEFAULT_SEC2_USERNAME = "wifiprov";
 
     private ESPProvisionManager manager;
-    private final Map<String, BleCandidate> discoveredDevices = new LinkedHashMap<>();
+    private static BleDiscovery.Factory discoveryFactory;
+    private BleDiscovery discovery;
+
+    // Configure before Capacitor loads plugins; standalone users keep the SDK port.
+    public static void setBleDiscoveryFactory(BleDiscovery.Factory factory) { discoveryFactory = factory; }
+    // Capacitor calls and injected Android scan callbacks can use different threads.
+    // Snapshot before calling SDK/user listeners; never hold this lock across them.
+    private final Map<String, BleCandidate> discoveredDevices = Collections.synchronizedMap(new LinkedHashMap<>());
 
     private ESPDevice selectedDevice;
     private BleCandidate selectedCandidate;
@@ -88,6 +96,7 @@ public class WiFiProvPlugin extends Plugin {
     @Override
     public void load() {
         manager = ESPProvisionManager.getInstance(getContext().getApplicationContext());
+        if (discoveryFactory != null) discovery = discoveryFactory.create(getContext().getApplicationContext());
         connectivityManager = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
         if (!EventBus.getDefault().isRegistered(this)) {
             EventBus.getDefault().register(this);
@@ -96,6 +105,7 @@ public class WiFiProvPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        stopBleDiscovery(error -> {});
         cleanupSoftApBinding();
         if (selectedDevice != null) {
             selectedDevice.disconnectDevice();
@@ -158,7 +168,7 @@ public class WiFiProvPlugin extends Plugin {
         emitScanState("started", null);
 
         try {
-            manager.searchBleEspDevices(prefix, new BleScanListener() {
+            startBleDiscovery(prefix, new BleScanListener() {
                 @Override
                 public void scanStartFailed() {
                     emitScanState("failed", "Bluetooth is disabled or scanning could not start.");
@@ -170,7 +180,7 @@ public class WiFiProvPlugin extends Plugin {
                     if (candidate == null) {
                         return;
                     }
-                    discoveredDevices.put(candidate.id, candidate);
+                    if (!remember(candidate)) return;
                     notifyListeners("bleScanResult", candidate.toJSObject());
                 }
 
@@ -196,20 +206,16 @@ public class WiFiProvPlugin extends Plugin {
 
     @PluginMethod
     public void stopBleScan(PluginCall call) {
-        try {
-            manager.stopBleScan();
-            emitScanState("stopped", null);
-            call.resolve();
-        } catch (Exception error) {
-            emitError("stopBleScan", error);
-            call.reject(message(error));
-        }
+        stopBleDiscovery(error -> {
+            if (error != null) { call.reject(error); return; }
+            emitScanState("stopped", null); call.resolve();
+        });
     }
 
     @PluginMethod
     public void getDiscoveredDevices(PluginCall call) {
         JSArray devices = new JSArray();
-        for (BleCandidate candidate : discoveredDevices.values()) {
+        for (BleCandidate candidate : discoveredCandidates()) {
             devices.put(candidate.toJSObject());
         }
         JSObject result = new JSObject();
@@ -220,11 +226,11 @@ public class WiFiProvPlugin extends Plugin {
     @PluginMethod
     public void selectDevice(PluginCall call) {
         String id = call.getString("id");
-        if (id == null || !discoveredDevices.containsKey(id)) {
+        BleCandidate candidate = id == null ? null : discoveredDevices.get(id);
+        if (candidate == null) {
             call.reject("Unknown BLE device id. Scan again before selecting a device.");
             return;
         }
-        BleCandidate candidate = discoveredDevices.get(id);
         int security = securityFrom(call.getInt("security"));
         selectCandidate(candidate, security, call.getString("pop", ""), call.getString("username", ""));
         call.resolve(buildDeviceInfo());
@@ -497,27 +503,25 @@ public class WiFiProvPlugin extends Plugin {
 
     @PluginMethod
     public void clearState(PluginCall call) {
-        try {
-            manager.stopBleScan();
-        } catch (Exception ignored) {
-            // A scan may not be active.
-        }
-        if (selectedDevice != null) {
-            selectedDevice.disconnectDevice();
-        }
-        cleanupSoftApBinding();
-        discoveredDevices.clear();
-        selectedDevice = null;
-        selectedCandidate = null;
-        selectedId = null;
-        selectedName = null;
-        selectedTransport = null;
-        selectedPop = "";
-        selectedUsername = "";
-        selectedSoftApPassword = "";
-        connected = false;
-        pendingConnectCall = null;
-        call.resolve();
+        stopBleDiscovery(error -> {
+            if (error != null) { call.reject(error); return; }
+            if (selectedDevice != null) {
+                selectedDevice.disconnectDevice();
+            }
+            cleanupSoftApBinding();
+            discoveredDevices.clear();
+            selectedDevice = null;
+            selectedCandidate = null;
+            selectedId = null;
+            selectedName = null;
+            selectedTransport = null;
+            selectedPop = "";
+            selectedUsername = "";
+            selectedSoftApPassword = "";
+            connected = false;
+            pendingConnectCall = null;
+            call.resolve();
+        });
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -577,7 +581,7 @@ public class WiFiProvPlugin extends Plugin {
             return;
         }
 
-        for (BleCandidate candidate : discoveredDevices.values()) {
+        for (BleCandidate candidate : discoveredCandidates()) {
             if (name.equalsIgnoreCase(candidate.name)) {
                 selectCandidate(candidate, security, pop, username);
                 call.resolve(buildDeviceInfo());
@@ -593,7 +597,7 @@ public class WiFiProvPlugin extends Plugin {
         AtomicReference<BleCandidate> match = new AtomicReference<>();
         AtomicBoolean settled = new AtomicBoolean(false);
         emitScanState("started", null);
-        manager.searchBleEspDevices(name, new BleScanListener() {
+        startBleDiscovery(name, new BleScanListener() {
             @Override
             public void scanStartFailed() {
                 if (settled.compareAndSet(false, true)) {
@@ -608,7 +612,7 @@ public class WiFiProvPlugin extends Plugin {
                 if (candidate == null) {
                     return;
                 }
-                discoveredDevices.put(candidate.id, candidate);
+                if (!remember(candidate)) return;
                 notifyListeners("bleScanResult", candidate.toJSObject());
                 if (name.equalsIgnoreCase(candidate.name)) {
                     match.compareAndSet(null, candidate);
@@ -639,6 +643,34 @@ public class WiFiProvPlugin extends Plugin {
                 }
             }
         });
+    }
+
+    private void startBleDiscovery(String prefix, BleScanListener listener) {
+        if (discovery == null) { manager.searchBleEspDevices(prefix, listener); return; }
+        discovery.start(prefix, new BleDiscovery.Listener() {
+            public void result(ScanResult result) { listener.onPeripheralFound(result.getDevice(), result); }
+            public void ended(String error) {
+                if (error == null) listener.scanCompleted();
+                else listener.onFailure(new IllegalStateException(error));
+            }
+        });
+    }
+
+    private boolean remember(BleCandidate candidate) {
+        synchronized (discoveredDevices) {
+            if (!discoveredDevices.containsKey(candidate.id) && discoveredDevices.size() >= 64) return false;
+            discoveredDevices.put(candidate.id, candidate); return true;
+        }
+    }
+
+    private List<BleCandidate> discoveredCandidates() {
+        synchronized (discoveredDevices) { return new ArrayList<>(discoveredDevices.values()); }
+    }
+
+    private void stopBleDiscovery(BleDiscovery.Completion completed) {
+        if (discovery != null) { discovery.stop(completed); return; }
+        try { manager.stopBleScan(); completed.complete(null); }
+        catch (RuntimeException error) { completed.complete("BLE_SCAN_CLOSE_FAILED"); }
     }
 
     private void selectCandidate(BleCandidate candidate, int security, String pop, String username) {
