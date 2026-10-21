@@ -18,6 +18,23 @@ Capacitor 8 native plugin for provisioning ESP32 devices with Espressif's offici
 
 The JavaScript API is intentionally platform-neutral. Android uses `esp-idf-provisioning-android` 2.4.4; iOS uses `ESPProvision` 3.1.0.
 
+### Optional Android host-owned BLE discovery
+
+A host that also scans for non-provisioning BLE devices can call
+`WiFiProvPlugin.setBleDiscoveryFactory(...)` before Capacitor loads plugins.
+The factory supplies `BleDiscovery`: bounded `start(prefix, listener)` and
+`stop(completion)`. Both list discovery and name/QR fallback discovery use it.
+The host owns native scan admission, Android quotas, foreground cancellation,
+generation isolation and failure events; it must complete stop only after the
+underlying scanner is released (or report an error). Discovery candidates are
+capped at 64. A cancelled name lookup must fail, not select a late candidate.
+
+This optional port changes discovery only. Espressif still owns provisioning
+GATT, Security1/2, sessions and payloads. Standalone users retain the SDK default
+scanner; the plugin does not depend on Blinker App classes. When developing via
+a `file:` package dependency, refresh the package and run Capacitor update so
+the Android build uses the changed sources, not an older package-store copy.
+
 ## Requirements
 
 - Capacitor 8
